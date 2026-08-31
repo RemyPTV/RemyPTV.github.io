@@ -11,12 +11,15 @@
 
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
 html,
 body {
   height: 100%;
+  height: 100dvh;
   margin: 0;
+  overflow: hidden;
   font-family:
     -apple-system,
     Segoe UI,
@@ -31,6 +34,8 @@ body {
 #app {
   display: flex;
   height: 100vh;
+  height: 100dvh;
+  position: relative;
 }
 
 #sidebar {
@@ -40,6 +45,53 @@ body {
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
+}
+
+#sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+
+#sidebar-head h1 {
+  border-bottom: none;
+}
+
+#close-sidebar,
+#menu-btn {
+  display: none;
+}
+
+#menu-btn {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 1200;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+#close-sidebar {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 18px;
+  padding: 12px 16px;
+  cursor: pointer;
+}
+
+#sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1300;
 }
 
 #sidebar h1 {
@@ -60,12 +112,12 @@ body {
 
 #search {
   width: 100%;
-  padding: 8px 10px;
+  padding: 10px 10px;
   border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--panel2);
   color: var(--text);
-  font-size: 14px;
+  font-size: 16px;
 }
 
 .filter-row {
@@ -260,9 +312,97 @@ body {
   pointer-events: none;
 }
 
+/* train/tram/ferry lines carry full names, not short numbers - cap
+   their width and fade long ones out instead of letting them sprawl */
 .route-badge.line-badge {
   max-width: 130px;
   overflow: hidden;
   text-overflow: ellipsis;
   padding: 0 10px;
+}
+
+/* ---------------------------------------------------------------
+   Mobile: the sidebar becomes an off-canvas drawer (opened via
+   #menu-btn, closed via #close-sidebar / tapping the overlay /
+   selecting a route) instead of permanently eating map width, and
+   touch targets get bigger throughout.
+--------------------------------------------------------------- */
+@media (max-width: 768px) {
+  #menu-btn {
+    display: block;
+  }
+
+  #close-sidebar {
+    display: block;
+  }
+
+  #sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 85vw;
+    max-width: 340px;
+    min-width: 0;
+    z-index: 1400;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.45);
+  }
+
+  #app.sidebar-open #sidebar {
+    transform: translateX(0);
+  }
+
+  #app.sidebar-open #sidebar-overlay {
+    display: block;
+  }
+
+  #map {
+    width: 100%;
+  }
+
+  #legend {
+    font-size: 10px;
+    padding: 8px 10px;
+    bottom: 10px;
+    left: 10px;
+    max-width: 48vw;
+  }
+
+  #legend div {
+    margin: 2px 0;
+  }
+
+  /* bigger, easier-to-tap rows and chips */
+  .route-item {
+    padding: 12px 10px;
+  }
+
+  .chip {
+    padding: 9px 14px;
+    font-size: 13px;
+  }
+
+  .toggle-row {
+    font-size: 13px;
+  }
+
+  .toggle-row input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+  }
+
+  /* leaflet popups can otherwise overflow a narrow viewport */
+  .leaflet-popup-content-wrapper {
+    max-width: 72vw;
+  }
+
+  .leaflet-popup-content {
+    margin: 10px 12px;
+  }
+
+  .leaflet-control-zoom {
+    margin-bottom: 20px !important;
+  }
 }

@@ -29,6 +29,14 @@ L.tileLayer(
   },
 ).addTo(map);
 
+/* ---------------------------------------------------------------
+   Colour palette: the Catppuccin Mocha accent set (same family the
+   sidebar/UI already uses) instead of arbitrary neon hex codes -
+   these are curated to sit together without clashing. Assigned by a
+   stable hash of the route's identity, so a given route is always
+   the same colour across reloads regardless of feature order, and
+   whatever colour the GeoJSON itself carries is ignored.
+--------------------------------------------------------------- */
 const BUS_PALETTE = [
   "#f38ba8",
   "#fab387",
@@ -326,6 +334,7 @@ function selectRoute(id) {
   }
   renderList();
   setTimeout(rebuildBadges, 350); // after fitBounds' pan/zoom animation settles
+  closeSidebar(); // on mobile, picking a route should reveal the map, not stay behind the drawer
 }
 
 function buildTypeFilters() {
@@ -437,6 +446,21 @@ document.getElementById("toggle-exchanges").addEventListener("change", (e) => {
 });
 
 document.getElementById("search").addEventListener("input", applyFilters);
+
+function openSidebar() {
+  document.getElementById("app").classList.add("sidebar-open");
+}
+function closeSidebar() {
+  document.getElementById("app").classList.remove("sidebar-open");
+}
+
+document.getElementById("menu-btn").addEventListener("click", openSidebar);
+document
+  .getElementById("close-sidebar")
+  .addEventListener("click", closeSidebar);
+document
+  .getElementById("sidebar-overlay")
+  .addEventListener("click", closeSidebar);
 
 /* ---------------------------------------------------------------
    Load every mode's files separately and merge client-side. Each

@@ -15,8 +15,13 @@
 
 <body>
   <div id="app">
+    <button id="menu-btn" aria-label="Open route list">☰ Routes</button>
+    <div id="sidebar-overlay"></div>
     <div id="sidebar">
-      <h1>Melbourne <span>Bus</span> Routes</h1>
+      <div id="sidebar-head">
+        <h1>Melbourne <span>Bus</span> Routes</h1>
+        <button id="close-sidebar" aria-label="Close">✕</button>
+      </div>
       <div id="controls">
         <input id="search" type="text" placeholder="Search route number or name..." />
         <div class="filter-row" id="type-filters"></div>
