@@ -29,15 +29,43 @@ L.tileLayer(
   },
 ).addTo(map);
 
+const BUS_PALETTE = [
+  "#f38ba8",
+  "#fab387",
+  "#f9e2af",
+  "#a6e3a1",
+  "#94e2d5",
+  "#cba6f7",
+  "#f5c2e7",
+  "#eba0ac",
+];
+const MODE_COLOR = { train: "#89b4fa", tram: "#a6e3a1", ferry: "#94e2d5" };
+
+function hashColor(key, palette) {
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) | 0;
+  return palette[Math.abs(h) % palette.length];
+}
+
+function assignColors(features) {
+  features.forEach((f) => {
+    const p = f.properties;
+    p.color =
+      p.route_type === "bus"
+        ? hashColor(routeId(p), BUS_PALETTE)
+        : MODE_COLOR[p.route_type] || MODE_COLOR.train;
+  });
+}
+
 const legend = L.control({ position: "bottomleft" });
 legend.onAdd = function () {
   const div = L.DomUtil.create("div", "");
   div.id = "legend";
   div.innerHTML = `<div><b>Route type</b></div>
-    <div><span class="dot" style="background:#ff8a3d"></span> Bus</div>
-    <div><span class="dot" style="background:#4d7cff"></span> Train</div>
+    <div><span class="dot" style="background:${BUS_PALETTE[0]}"></span> Bus</div>
+    <div><span class="dot" style="background:${MODE_COLOR.train}"></span> Train</div>
     <div><span class="dot" style="background:#fff;border:2px solid #11111b"></span> Stop</div>
-    <div><span class="dot" style="background:#fff;border:2px solid #4d7cff"></span> Station</div>
+    <div><span class="dot" style="background:#fff;border:2px solid ${MODE_COLOR.train}"></span> Station</div>
     <div><span class="exchange" style="width: 10px;height: 10px;background: #11111b;border: 2px solid #f9e2af;border-radius: 50%;box-shadow: 0 0 0 1px rgba(249, 226, 175, 0.35);"></span> Exchange</div>
     <div><span style="width:9px;height:9px;background:#fff;border:2px solid #f38ba8;border-radius:2px;display:inline-block;transform:rotate(45deg);margin:0 2px;"></span> Terminus</div>`;
   return div;
@@ -47,13 +75,14 @@ legend.addTo(map);
 let routesLayer;
 let stopsLayer = L.layerGroup();
 let badgeLayer = L.layerGroup();
-let exchangeLayer = L.layerGroup().addTo(map);
+let exchangeLayer = L.layerGroup();
 let stopFeatures = [];
 let allFeatures = [];
 let selectedId = null;
 const activeTypes = new Set();
 const NUMBER_ZOOM = 13; // route number badges appear once you zoom past this
 const STOP_ZOOM = 15; // stop dots appear once you zoom past this
+const EXCHANGE_ZOOM = 12; // exchange markers appear once you zoom past this - a bit earlier than stops, but not city-wide
 const BADGE_MIN_DIST = 55; // px - badges closer together than this get skipped
 
 function routeId(props) {
@@ -63,9 +92,9 @@ function routeId(props) {
 function styleFor(props, isSelected) {
   const isTrain = props.route_type === "train";
   return {
-    color: isTrain ? "#4d7cff" : props.color || "#ff8a3d",
+    color: props.color || BUS_PALETTE[0],
     weight: isSelected ? 7 : isTrain ? 5 : 3,
-    opacity: isSelected ? 1 : isTrain ? 0.85 : 0.75,
+    opacity: isSelected ? 1 : isTrain ? 0.85 : 0.55,
   };
 }
 
@@ -116,19 +145,23 @@ function rebuildBadges() {
     const idxs = [0.5, 0.3, 0.7, 0.15, 0.85].map((f) =>
       Math.floor(f * (pool.length - 1)),
     );
+    const label = String(p.route_short_name);
+    const isLine = p.route_type !== "bus";
+    // wider label -> needs more clear space around its anchor point so
+    // it doesn't just collide-check its center against a neighbour's edge
+    const minDist =
+      BADGE_MIN_DIST + Math.min(label.length, 16) * (isLine ? 4 : 2);
 
     for (const idx of idxs) {
       const ll = pool[Math.max(0, Math.min(pool.length - 1, idx))];
       const pt = map.latLngToContainerPoint(ll);
-      const tooClose = placedPoints.some(
-        (pp) => pt.distanceTo(pp) < BADGE_MIN_DIST,
-      );
+      const tooClose = placedPoints.some((pp) => pt.distanceTo(pp) < minDist);
       if (!tooClose) {
         placedPoints.push(pt);
         const icon = L.divIcon({
           className: "",
           iconSize: [0, 0],
-          html: `<div class="route-badge" style="background:${p.color}">${p.route_short_name}</div>`,
+          html: `<div class="route-badge${isLine ? " line-badge" : ""}" style="background:${p.color}">${label}</div>`,
         });
         L.marker(ll, { icon, interactive: false }).addTo(badgeLayer);
         return; // placed - move to next route
@@ -141,6 +174,7 @@ function rebuildBadges() {
 function loadGeoJSON(geojson) {
   if (routesLayer) map.removeLayer(routesLayer);
   allFeatures = geojson.features;
+  assignColors(allFeatures);
 
   routesLayer = L.geoJSON(geojson, {
     style: (f) => styleFor(f.properties, false),
@@ -194,7 +228,7 @@ function rebuildStopsLayer() {
       const marker = L.circleMarker([lat, lng], {
         radius: 6,
         weight: 3,
-        color: "#4d7cff",
+        color: MODE_COLOR.train,
         fillColor: "#fff",
         fillOpacity: 1,
       });
@@ -226,7 +260,7 @@ function rebuildStopsLayer() {
    every pole with that name, and if it clears the threshold, draw
    one big marker at the centroid
 --------------------------------------------------------------- */
-const EXCHANGE_MIN_ROUTES = 5;
+const EXCHANGE_MIN_ROUTES = 8; // higher bar than before - only genuinely major hubs, not every moderately busy stop
 
 function rebuildExchanges() {
   exchangeLayer.clearLayers();
@@ -265,6 +299,12 @@ function rebuildExchanges() {
     );
     exchangeLayer.addLayer(marker);
   });
+  if (
+    document.getElementById("toggle-exchanges").checked &&
+    map.getZoom() >= EXCHANGE_ZOOM
+  ) {
+    exchangeLayer.addTo(map);
+  }
 }
 
 function eachLayer(cb) {
@@ -363,7 +403,7 @@ function renderList() {
   });
 }
 
-/* recompute badge positions and stop visibility as the view changes */
+/* recompute badge positions and stop/exchange visibility as the view changes */
 map.on("moveend zoomend", () => {
   rebuildBadges();
   const z = map.getZoom();
@@ -372,6 +412,13 @@ map.on("moveend zoomend", () => {
       if (!map.hasLayer(stopsLayer)) stopsLayer.addTo(map);
     } else {
       if (map.hasLayer(stopsLayer)) map.removeLayer(stopsLayer);
+    }
+  }
+  if (document.getElementById("toggle-exchanges").checked) {
+    if (z >= EXCHANGE_ZOOM) {
+      if (!map.hasLayer(exchangeLayer)) exchangeLayer.addTo(map);
+    } else {
+      if (map.hasLayer(exchangeLayer)) map.removeLayer(exchangeLayer);
     }
   }
 });
@@ -384,7 +431,8 @@ document.getElementById("toggle-stops").addEventListener("change", (e) => {
   else map.removeLayer(stopsLayer);
 });
 document.getElementById("toggle-exchanges").addEventListener("change", (e) => {
-  if (e.target.checked) exchangeLayer.addTo(map);
+  if (e.target.checked && map.getZoom() >= EXCHANGE_ZOOM)
+    exchangeLayer.addTo(map);
   else map.removeLayer(exchangeLayer);
 });
 
