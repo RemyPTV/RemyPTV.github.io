@@ -268,7 +268,7 @@ function rebuildStopsLayer() {
    every pole with that name, and if it clears the threshold, draw
    one big marker at the centroid
 --------------------------------------------------------------- */
-const EXCHANGE_MIN_ROUTES = 8; // higher bar than before - only genuinely major hubs, not every moderately busy stop
+const EXCHANGE_MIN_ROUTES = 8;
 
 function rebuildExchanges() {
   exchangeLayer.clearLayers();
@@ -462,10 +462,6 @@ document
   .getElementById("sidebar-overlay")
   .addEventListener("click", closeSidebar);
 
-/* ---------------------------------------------------------------
-   Load every mode's files separately and merge client-side. Each
-   mode is entirely optional
---------------------------------------------------------------- */
 const MODES = ["bus", "train", "tram", "ferry"];
 
 function fetchJSON(path) {
