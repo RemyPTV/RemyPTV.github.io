@@ -35,7 +35,9 @@ legend.onAdd = function () {
   div.id = "legend";
   div.innerHTML = `<div><b>Route type</b></div>
     <div><span class="dot" style="background:#ff8a3d"></span> Bus</div>
+    <div><span class="dot" style="background:#4d7cff"></span> Train</div>
     <div><span class="dot" style="background:#fff;border:2px solid #11111b"></span> Stop</div>
+    <div><span class="dot" style="background:#fff;border:2px solid #4d7cff"></span> Station</div>
     <div><span class="exchange" style="width: 10px;height: 10px;background: #11111b;border: 2px solid #f9e2af;border-radius: 50%;box-shadow: 0 0 0 1px rgba(249, 226, 175, 0.35);"></span> Exchange</div>
     <div><span style="width:9px;height:9px;background:#fff;border:2px solid #f38ba8;border-radius:2px;display:inline-block;transform:rotate(45deg);margin:0 2px;"></span> Terminus</div>`;
   return div;
@@ -59,10 +61,11 @@ function routeId(props) {
 }
 
 function styleFor(props, isSelected) {
+  const isTrain = props.route_type === "train";
   return {
-    color: props.color || "#ff8a3d",
-    weight: isSelected ? 6 : 3,
-    opacity: isSelected ? 1 : 0.75,
+    color: isTrain ? "#4d7cff" : props.color || "#ff8a3d",
+    weight: isSelected ? 7 : isTrain ? 5 : 3,
+    opacity: isSelected ? 1 : isTrain ? 0.85 : 0.75,
   };
 }
 
@@ -174,6 +177,7 @@ function rebuildStopsLayer() {
   stopFeatures.forEach((f) => {
     const p = f.properties;
     const [lng, lat] = f.geometry.coordinates;
+    const isTrain = p.mode === "train";
     if (p.is_terminal) {
       const icon = L.divIcon({
         className: "",
@@ -182,7 +186,20 @@ function rebuildStopsLayer() {
       });
       const marker = L.marker([lat, lng], { icon });
       marker.bindPopup(
-        `<div class="stop-popup"><h4>${p.stop_name}</h4><div class="routes"><b>Terminus</b> — Routes: ${(p.routes || []).join(", ")}</div></div>`,
+        `<div class="stop-popup"><h4>${p.stop_name}</h4><div class="routes"><b>Terminus</b> — ${isTrain ? "Lines" : "Routes"}: ${(p.routes || []).join(", ")}</div></div>`,
+      );
+      stopsLayer.addLayer(marker);
+    } else if (isTrain) {
+      // train stations get a bigger, blue-ringed dot so they read at a glance
+      const marker = L.circleMarker([lat, lng], {
+        radius: 6,
+        weight: 3,
+        color: "#4d7cff",
+        fillColor: "#fff",
+        fillOpacity: 1,
+      });
+      marker.bindPopup(
+        `<div class="stop-popup"><h4>${p.stop_name}</h4><div class="routes"><b>Station</b> — Lines: ${(p.routes || []).join(", ")}</div></div>`,
       );
       stopsLayer.addLayer(marker);
     } else {
@@ -373,23 +390,38 @@ document.getElementById("toggle-exchanges").addEventListener("change", (e) => {
 
 document.getElementById("search").addEventListener("input", applyFilters);
 
-fetch("routes.geojson")
-  .then((r) => {
-    if (!r.ok) throw new Error("no file");
-    return r.json();
-  })
-  .then(loadGeoJSON)
-  .catch(() => loadGeoJSON(SAMPLE_ROUTES));
+/* ---------------------------------------------------------------
+   Load every mode's files separately and merge client-side. Each
+   mode is entirely optional
+--------------------------------------------------------------- */
+const MODES = ["bus", "train", "tram", "ferry"];
 
-fetch("stops.geojson")
-  .then((r) => {
-    if (!r.ok) throw new Error("no file");
-    return r.json();
-  })
-  .then(loadStops)
-  .catch(() => {
-    /* no stops file yet - fine, map still works */
-  });
+function fetchJSON(path) {
+  return fetch(path)
+    .then((r) => {
+      if (!r.ok) throw new Error("missing");
+      return r.json();
+    })
+    .catch(() => null);
+}
+
+Promise.all(MODES.map((m) => fetchJSON(`${m}-routes.geojson`))).then(
+  (results) => {
+    const features = results.filter(Boolean).flatMap((g) => g.features);
+    if (features.length) {
+      loadGeoJSON({ type: "FeatureCollection", features });
+    } else {
+      loadGeoJSON(SAMPLE_ROUTES);
+    }
+  },
+);
+
+Promise.all(MODES.map((m) => fetchJSON(`${m}-stops.geojson`))).then(
+  (results) => {
+    const features = results.filter(Boolean).flatMap((g) => g.features);
+    if (features.length) loadStops({ type: "FeatureCollection", features });
+  },
+);
 
 const SAMPLE_ROUTES = {
   type: "FeatureCollection",
