@@ -15,7 +15,7 @@ function feature(num, name, type, color, coords) {
 }
 
 /* MAP SETUP */
-const map = L.map("map", { zoomControl: false }).setView(
+const map = L.map("map", { zoomControl: false, preferCanvas: true }).setView(
   [-37.8136, 144.9631],
   11,
 );
